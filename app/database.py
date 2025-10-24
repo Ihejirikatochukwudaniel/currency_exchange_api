@@ -1,28 +1,35 @@
+import ssl
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker, declarative_base
 from app.config import settings
 
-# Get the database URL from your environment
-DATABASE_URL = settings.database_url
+# ✅ Your Aiven MySQL connection URL
+DATABASE_URL = settings.database_url  # from .env
 
-# Create the async engine
-engine = create_async_engine(DATABASE_URL, echo=False, future=True)
+# ✅ Create an SSL context (required by Aiven)
+ssl_context = ssl.create_default_context()
+ssl_context.check_hostname = True
+ssl_context.verify_mode = ssl.CERT_REQUIRED
 
-# Create the session factory
+# ✅ Build the async SQLAlchemy engine
+engine = create_async_engine(
+    DATABASE_URL,
+    echo=False,
+    future=True,
+    connect_args={"ssl": ssl_context},  # 👈 FIXED HERE
+)
+
+# ✅ Create async session
 AsyncSessionLocal = sessionmaker(
-    bind=engine,
+    engine,
     class_=AsyncSession,
     expire_on_commit=False
 )
 
-# Declare the base for ORM models
+# ✅ Base class for models
 Base = declarative_base()
 
-# ✅ Dependency for FastAPI
-async def get_db():
-    """
-    Dependency that provides a SQLAlchemy async session.
-    Closes the session automatically after request.
-    """
+# ✅ Dependency to get DB session
+async def get_session():
     async with AsyncSessionLocal() as session:
         yield session
