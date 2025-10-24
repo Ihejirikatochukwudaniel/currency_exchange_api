@@ -1,9 +1,8 @@
 fastapi
 uvicorn[standard]
-SQLAlchemy>=1.4
-aiomysql
-alembic
+sqlalchemy
+asyncpg
 httpx
-pillow
 python-dotenv
 pydantic
+pydantic-settings
