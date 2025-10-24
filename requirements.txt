@@ -1,0 +1,9 @@
+fastapi
+uvicorn[standard]
+SQLAlchemy>=1.4
+aiomysql
+alembic
+httpx
+pillow
+python-dotenv
+pydantic
