@@ -16,20 +16,23 @@ engine = create_async_engine(
     DATABASE_URL,
     echo=False,
     future=True,
-    connect_args={"ssl": ssl_context},  # 👈 FIXED HERE
+    connect_args={"ssl": ssl_context},
 )
 
 # ✅ Create async session
 AsyncSessionLocal = sessionmaker(
-    engine,
+    bind=engine,
     class_=AsyncSession,
-    expire_on_commit=False
+    expire_on_commit=False,
 )
 
 # ✅ Base class for models
 Base = declarative_base()
 
-# ✅ Dependency to get DB session
-async def get_session():
+# ✅ Dependency to get DB session (for FastAPI)
+async def get_db():
     async with AsyncSessionLocal() as session:
-        yield session
+        try:
+            yield session
+        finally:
+            await session.close()
