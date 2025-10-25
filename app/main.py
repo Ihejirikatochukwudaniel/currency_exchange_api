@@ -1,49 +1,48 @@
 from fastapi import FastAPI
+from contextlib import asynccontextmanager
 from app.routers import countries
 from app.database import engine, Base, close_engine
-import asyncio
 
-app = FastAPI(
-    title="Country Cache API",
-    version="1.0",
-    description="An API that caches country data and exchange rates."
-)
-
-# ✅ Register routers
-app.include_router(countries.router)
-
-# ✅ Healthcheck endpoint (Leapcell expects this)
-@app.get("/kaithhealthcheck")
-async def healthcheck():
-    return {"status": "ok"}
-
-# ✅ Create database tables (non-blocking)
-@app.on_event("startup")
-async def on_startup():
-    async def init_db():
-        try:
-            async with engine.begin() as conn:
-                await conn.run_sync(Base.metadata.create_all)
-            print("✅ Database tables created successfully.")
-        except Exception as e:
-            print(f"❌ Database connection error during startup: {e}")
-
-    # Run DB initialization in the background (non-blocking)
-    asyncio.create_task(init_db())
-
-# ✅ Root endpoint
-@app.get("/")
-async def root():
-    return {"message": "Welcome to Country Cache API"}
-
-# ✅ Graceful shutdown
-@app.on_event("shutdown")
-async def on_shutdown():
+# ✅ Use lifespan context manager (recommended over deprecated on_event)
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup
+    try:
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+        print("✅ Database tables created successfully.")
+    except Exception as e:
+        print(f"❌ Database connection error during startup: {e}")
+        # Don't raise - let the app start even if DB fails
+    
+    yield  # App is running
+    
+    # Shutdown
     try:
         await close_engine()
         print("🛑 Database engine disposed successfully.")
     except Exception as e:
         print(f"⚠️ Error disposing database engine: {e}")
+
+app = FastAPI(
+    title="Country Cache API",
+    version="1.0",
+    description="An API that caches country data and exchange rates.",
+    lifespan=lifespan
+)
+
+# ✅ Register routers
+app.include_router(countries.router)
+
+# ✅ Healthcheck endpoint - FIXED TYPO
+@app.get("/kaithhealthcheck")
+async def healthcheck():
+    return {"status": "ok"}
+
+# ✅ Root endpoint
+@app.get("/")
+async def root():
+    return {"message": "Welcome to Country Cache API"}
 
 # ✅ Only for local development
 if __name__ == "__main__":
