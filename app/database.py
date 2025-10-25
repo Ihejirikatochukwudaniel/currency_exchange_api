@@ -3,8 +3,8 @@ from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker, declarative_base
 from app.config import settings
 
-# ✅ Your Aiven MySQL connection URL
-DATABASE_URL = settings.database_url  # from .env
+# ✅ Cast your Aiven MySQL URL to string to avoid SQLAlchemy ArgumentError
+DATABASE_URL = str(settings.database_url)  # from .env
 
 # ✅ Create an SSL context (required by Aiven)
 ssl_context = ssl.create_default_context()
@@ -36,4 +36,3 @@ async def get_db():
             yield session
         finally:
             await session.close()
-
