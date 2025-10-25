@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from contextlib import asynccontextmanager
+from sqlalchemy import text
 from app.routers import countries
 from app.database import engine, Base, close_engine
 import asyncio
@@ -13,13 +14,27 @@ async def init_database():
     global db_ready, db_error
     try:
         print("🔄 Starting database initialization...")
+        print(f"📍 Connecting to database...")
+        
+        # Test connection first
+        async with engine.connect() as conn:
+            await conn.execute(text("SELECT 1"))
+        print("✅ Database connection successful")
+        
+        # Create tables
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
+        
         db_ready = True
         print("✅ Database tables created successfully.")
+        
     except Exception as e:
+        import traceback
         db_error = str(e)
+        error_detail = traceback.format_exc()
         print(f"❌ Database connection error during startup: {e}")
+        print(f"📋 Full error details:\n{error_detail}")
+        print(f"🔍 Check your DATABASE_URL environment variable")
 
 # ✅ Use lifespan context manager but don't block startup
 @asynccontextmanager
@@ -47,8 +62,9 @@ app = FastAPI(
 # ✅ Register routers
 app.include_router(countries.router)
 
-# ✅ Healthcheck endpoint - Returns immediately without waiting for DB
+# ✅ Healthcheck endpoints - Returns immediately without waiting for DB
 @app.get("/kaithhealthcheck")
+@app.get("/kaithheathcheck")  # Leapcell seems to check this typo version too
 async def healthcheck():
     """
     Health check endpoint for Leapcell proxy.
