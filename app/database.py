@@ -1,25 +1,19 @@
-import ssl
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker, declarative_base
 from app.config import settings
 
-# ✅ Cast your Aiven MySQL URL to string to avoid SQLAlchemy ArgumentError
-DATABASE_URL = str(settings.database_url)  # from .env
+# ✅ PostgreSQL connection URL from .env
+# Example: postgresql+asyncpg://user:password@host:port/dbname
+DATABASE_URL = str(settings.database_url)
 
-# ✅ Create an SSL context (required by Aiven)
-ssl_context = ssl.create_default_context()
-ssl_context.check_hostname = True
-ssl_context.verify_mode = ssl.CERT_REQUIRED
-
-# ✅ Build the async SQLAlchemy engine
+# ✅ Create the async SQLAlchemy engine
 engine = create_async_engine(
     DATABASE_URL,
     echo=False,
     future=True,
-    connect_args={"ssl": ssl_context},
 )
 
-# ✅ Create async session
+# ✅ Create async session factory
 AsyncSessionLocal = sessionmaker(
     bind=engine,
     class_=AsyncSession,
@@ -29,7 +23,7 @@ AsyncSessionLocal = sessionmaker(
 # ✅ Base class for models
 Base = declarative_base()
 
-# ✅ Dependency to get DB session (for FastAPI)
+# ✅ Dependency to get DB session (for FastAPI routes)
 async def get_db():
     async with AsyncSessionLocal() as session:
         try:
