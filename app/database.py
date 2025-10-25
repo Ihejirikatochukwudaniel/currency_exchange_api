@@ -1,66 +1,44 @@
-import ssl
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.orm import declarative_base
+from sqlalchemy.pool import NullPool
 from app.config import settings
 
 # ✅ Database URL (from .env)
+# Change driver from asyncpg to psycopg (async version of psycopg2)
 DATABASE_URL = str(settings.database_url)
 
-# ✅ Create an SSL context for secure PostgreSQL connection
-ssl_context = ssl.create_default_context()
-ssl_context.check_hostname = False
-ssl_context.verify_mode = ssl.CERT_NONE  # Leapcell handles SSL internally
+# Replace asyncpg with psycopg if needed
+if "asyncpg" in DATABASE_URL:
+    DATABASE_URL = DATABASE_URL.replace("asyncpg", "psycopg")
+    print("🔄 Switched driver from asyncpg to psycopg")
 
-# ✅ Detect if using connection pooler (port 6438 or 6543 typically)
-is_pooler = ":6438" in DATABASE_URL or ":6543" in DATABASE_URL
+# ✅ Ensure URL has SSL mode parameter
+if "?" not in DATABASE_URL:
+    DATABASE_URL = f"{DATABASE_URL}?sslmode=require"
+elif "ssl" not in DATABASE_URL.lower():
+    DATABASE_URL = f"{DATABASE_URL}&sslmode=require"
 
-# ✅ Build async SQLAlchemy engine with proper pooler settings
-if is_pooler:
-    print("🔵 Using connection pooler configuration")
-    engine = create_async_engine(
-        DATABASE_URL,
-        echo=False,
-        future=True,
-        connect_args={
-            "ssl": ssl_context,
-            "server_settings": {
-                "application_name": "country_cache_api",
-                # Don't set timeouts with pooler - it manages them
-            },
-            "timeout": 10,  # Connection timeout
-        },
-        # ✅ CRITICAL: Disable connection pooling when using external pooler
-        poolclass=None,  # No SQLAlchemy pooling - pooler handles it
-    )
-else:
-    print("🟢 Using direct connection configuration")
-    engine = create_async_engine(
-        DATABASE_URL,
-        echo=False,
-        future=True,
-        connect_args={
-            "ssl": ssl_context,
-            "server_settings": {
-                "application_name": "country_cache_api",
-                "statement_timeout": "30000",  # 30 second query timeout
-                "idle_in_transaction_session_timeout": "60000",  # 60 sec idle timeout
-            },
-            "command_timeout": 30,
-            "timeout": 10,  # Connection timeout
-        },
-        pool_pre_ping=True,       # checks connections before using them
-        pool_size=5,              # number of connections to maintain
-        max_overflow=10,          # additional connections allowed
-        pool_recycle=3600,        # recycle connections every 1 hour
-        pool_timeout=30,          # max wait time for connection (seconds)
-    )
+print(f"🔗 Connecting to database with psycopg driver")
+
+# ✅ Build async SQLAlchemy engine for Leapcell
+engine = create_async_engine(
+    DATABASE_URL,
+    echo=False,  # Set to True for SQL debugging
+    poolclass=NullPool,  # No connection pooling - Leapcell pooler handles it
+    connect_args={
+        "connect_timeout": 30,
+        "options": "-c search_path=public",  # Set default schema
+    },
+)
+
+print("✅ Database engine created with psycopg and SSL")
 
 # ✅ Create async session factory
 AsyncSessionLocal = async_sessionmaker(
     bind=engine,
     class_=AsyncSession,
     expire_on_commit=False,
-    autoflush=False,  # Prevent automatic flushes
+    autoflush=False,
     autocommit=False,
 )
 
@@ -72,13 +50,14 @@ async def get_db():
     async with AsyncSessionLocal() as session:
         try:
             yield session
-            await session.commit()  # Commit if successful
+            await session.commit()
         except Exception as e:
-            await session.rollback()  # Rollback on error
-            raise  # Re-raise the exception
+            await session.rollback()
+            raise
         finally:
-            await session.close()  # Always close
+            await session.close()
 
-# ✅ Graceful shutdown handler to close the engine
+# ✅ Graceful shutdown handler
 async def close_engine():
     await engine.dispose()
+    print("✅ Database engine disposed")
