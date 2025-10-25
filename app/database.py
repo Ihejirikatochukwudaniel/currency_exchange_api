@@ -36,3 +36,4 @@ async def get_db():
             yield session
         finally:
             await session.close()
+
