@@ -105,6 +105,25 @@ async def refresh_countries(db: AsyncSession = Depends(get_db)):
     4. Stores everything in the database
     5. Generates a summary image
     """
+    # Check if database is ready (optional - remove if not needed)
+    from app.main import db_ready, db_error
+    if not db_ready:
+        if db_error:
+            raise HTTPException(
+                status_code=503,
+                detail={
+                    "error": "Database not ready",
+                    "details": f"Database initialization failed: {db_error}"
+                }
+            )
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "error": "Database not ready",
+                "details": "Database is still initializing. Please try again in a few seconds."
+            }
+        )
+    
     try:
         async with httpx.AsyncClient(timeout=30.0) as client:
             try:
